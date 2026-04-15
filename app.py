@@ -6,35 +6,68 @@ from flask_cors import CORS
 import google.generativeai as genai
 
 app = Flask(__name__)
+# CORS sayesinde Flutter uygulaman sunucuya takılmadan bağlanır
 CORS(app)
 
+# 1. GÜVENLİK: Render panelindeki "Environment Variables" kısmından GEMINI_API_KEY'i çeker
 api_key = os.environ.get("GEMINI_API_KEY")
-genai.configure(api_key=api_key)
-model = genai.GenerativeModel('gemini-1.5-flash')
 
+if api_key:
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+else:
+    print("HATA: GEMINI_API_KEY bulunamadı! Render panelini kontrol et.")
 
 @app.route("/")
 def home():
-    return "Kimya AI Sunucusu Aktif!"
-
+    return "<h1>Kimya AI Sunucusu Aktif!</h1><p>API Anahtarı Durumu: {}</p>".format("Yüklendi" if api_key else "Eksik!")
 
 @app.route("/solve", methods=["POST"])
 def solve():
     try:
+        # Gelen veriyi al
         data = request.get_json()
+        if not data or "reaction" not in data:
+            return jsonify({"products": "Hata", "balanced": "Veri gönderilmedi"}), 400
+        
         reaction = data.get("reaction", "")
+        print(f"Gelen İstek: {reaction}") # Loglarda ne yazıldığını gör
 
-        prompt = f"Kimya uzmanı olarak bu reaksiyonu çöz: '{reaction}'. Sadece şu JSON formatında cevap ver: {{\"products\": \"ürünler\", \"balanced\": \"denkleşmiş hali\"}}"
+        if not api_key:
+            return jsonify({"products": "Hata", "balanced": "Sunucuda API anahtarı ayarlanmamış!"}), 500
+
+        # Gemini'ye gönderilecek komut
+        prompt = (
+            f"Sen bir kimya uzmanısın. Şu reaksiyonu analiz et: '{reaction}'. "
+            f"Cevabı SADECE şu JSON formatında ver, başka açıklama yapma: "
+            f"{{\"products\": \"oluşan ürünler\", \"balanced\": \"denkleşmiş tam denklem\"}}"
+        )
 
         response = model.generate_content(prompt)
-        # Yanıtın içinden JSON'ı ayıkla
-        match = re.search(r'\{.*\}', response.text, re.DOTALL)
-        if match:
-            return jsonify(json.loads(match.group(0)))
-        return jsonify({"products": "Hata", "balanced": "JSON bulunamadı"}), 500
-    except Exception as e:
-        return jsonify({"products": "Hata", "balanced": str(e)}), 500
+        
+        # Yanıtın içindeki JSON kısmını bul (Bazen AI ekstra metin ekleyebiliyor)
+        text_response = response.text
+        print(f"AI Yanıtı: {text_response}") # Loglarda AI ne dedi görelim
 
+        match = re.search(r'\{.*\}', text_response, re.DOTALL)
+        
+        if match:
+            json_data = json.loads(match.group(0))
+            return jsonify(json_data)
+        else:
+            return jsonify({"products": "Hata", "balanced": "AI geçerli bir yanıt oluşturamadı"}), 500
+
+    except Exception as e:
+        # Render LOG kısmında hatanın tam adını görmek için:
+        print(f"--- KRİTİK HATA BAŞLANGICI ---")
+        print(f"Hata Mesajı: {str(e)}")
+        print(f"--- KRİTİK HATA BITIŞI ---")
+        return jsonify({
+            "products": "Sunucu hatası oluştu",
+            "balanced": f"Detay: {str(e)}"
+        }), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    # Render'ın port ayarını otomatik almasını sağlar
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
