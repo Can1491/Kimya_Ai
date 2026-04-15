@@ -13,7 +13,7 @@ api_key = os.environ.get("GEMINI_API_KEY")
 
 if api_key:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('models/gemini-pro')
 else:
     print("HATA: GEMINI_API_KEY bulunamadı! Render panelini kontrol et.")
 
