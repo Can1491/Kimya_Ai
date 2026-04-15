@@ -6,10 +6,9 @@ from flask_cors import CORS
 import google.generativeai as genai
 
 app = Flask(__name__)
-# CORS sayesinde Flutter uygulaman sunucuya takılmadan bağlanır
+
 CORS(app)
 
-# 1. GÜVENLİK: Render panelindeki "Environment Variables" kısmından GEMINI_API_KEY'i çeker
 api_key = os.environ.get("GEMINI_API_KEY")
 
 if api_key:
@@ -25,18 +24,17 @@ def home():
 @app.route("/solve", methods=["POST"])
 def solve():
     try:
-        # Gelen veriyi al
+
         data = request.get_json()
         if not data or "reaction" not in data:
             return jsonify({"products": "Hata", "balanced": "Veri gönderilmedi"}), 400
         
         reaction = data.get("reaction", "")
-        print(f"Gelen İstek: {reaction}") # Loglarda ne yazıldığını gör
+        print(f"Gelen İstek: {reaction}") 
 
         if not api_key:
             return jsonify({"products": "Hata", "balanced": "Sunucuda API anahtarı ayarlanmamış!"}), 500
 
-        # Gemini'ye gönderilecek komut
         prompt = (
             f"Sen bir kimya uzmanısın. Şu reaksiyonu analiz et: '{reaction}'. "
             f"Cevabı SADECE şu JSON formatında ver, başka açıklama yapma: "
@@ -44,10 +42,9 @@ def solve():
         )
 
         response = model.generate_content(prompt)
-        
-        # Yanıtın içindeki JSON kısmını bul (Bazen AI ekstra metin ekleyebiliyor)
+
         text_response = response.text
-        print(f"AI Yanıtı: {text_response}") # Loglarda AI ne dedi görelim
+        print(f"AI Yanıtı: {text_response}")
 
         match = re.search(r'\{.*\}', text_response, re.DOTALL)
         
@@ -58,7 +55,7 @@ def solve():
             return jsonify({"products": "Hata", "balanced": "AI geçerli bir yanıt oluşturamadı"}), 500
 
     except Exception as e:
-        # Render LOG kısmında hatanın tam adını görmek için:
+
         print(f"--- KRİTİK HATA BAŞLANGICI ---")
         print(f"Hata Mesajı: {str(e)}")
         print(f"--- KRİTİK HATA BITIŞI ---")
@@ -68,6 +65,6 @@ def solve():
         }), 500
 
 if __name__ == "__main__":
-    # Render'ın port ayarını otomatik almasını sağlar
+
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
