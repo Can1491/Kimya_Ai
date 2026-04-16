@@ -1,2 +1,1 @@
-# Kimya Ai
-
+Yapay zeka ile kimyasal reaksiyon çözümü.
